@@ -139,8 +139,7 @@ class VoiceClient:
         final_text, asr_ms, asr_secs = self.asr.streaming_listen(
             self.vad_stream,
             on_partial=on_partial,
-            # request_stop() previously set an event nothing in the listen loop
-            # ever read, so a stop could not interrupt the turn in progress.
+            # request_stop() must be able to cut a turn short mid-capture.
             should_stop=self.stop_event.is_set,
         )
         self.emit("asr_final", final_text)

@@ -81,9 +81,6 @@ class LLMClient:
 
         self.is_local = api_key is None and client is None
 
-        # The default was "penai/gpt-oss-20b": a missing leading "o". The
-        # README documents "openai/gpt-oss-20b", so anyone relying on the
-        # default got a model-not-found error from the vendor.
         default_model = LOCAL_MODEL_NAME if self.is_local else "openai/gpt-oss-20b"
         model_name = model or os.getenv("GROQ_LLM_MODEL", default_model)
         seed_str = os.getenv("SEED", "")
@@ -120,12 +117,10 @@ class LLMClient:
 
         Returns (token_generator, open_stream_latency_ms).
 
-        The second element used to be documented as the first-token latency,
-        which it could never be: the tuple is built before the caller has
-        consumed a single token, so `first_latency` was always still None and
-        the fallback — the time to open the stream — was what came back every
-        time. Time to first token is only knowable once the generator runs, so
-        it is recorded on `last_first_token_ms` for callers that want it.
+        The second element is the time to open the stream, not the time to
+        first token: the tuple exists before the caller has consumed anything.
+        Time to first token is only knowable once the generator runs, so it is
+        recorded on `last_first_token_ms` for callers that want it.
         """
         t0 = time.perf_counter()
         params = self._common_params(messages)
@@ -171,8 +166,6 @@ class LLMClient:
 
         latency_ms = (time.perf_counter() - t0) * 1000
         txt = resp.choices[0].message.content or ""
-        # The docstring promises a dict, and callers (logging, the metrics
-        # panel) treat it as one — but the Groq SDK returns a pydantic model
-        # here, so this returned an object that only looked dict-like.
+        # The Groq SDK returns a pydantic model; callers expect a plain dict.
         usage = _usage_as_dict(getattr(resp, "usage", None))
         return txt, latency_ms, usage

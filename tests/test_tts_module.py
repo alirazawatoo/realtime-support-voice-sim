@@ -108,8 +108,8 @@ class TestPlaybackController:
         assert pc._current is None
 
     def test_play_wav_releases_the_handle_when_playback_fails(self, monkeypatch) -> None:
-        # A raising wait_done used to leave a dead PlayObject referenced here,
-        # and the next stop() acted on it.
+        # A dead PlayObject left referenced here would be acted on by the
+        # next stop().
         class _Boom(_FakeSimpleAudio):
             def play_buffer(self, *args):
                 obj = super().play_buffer(*args)
@@ -170,9 +170,8 @@ class TestSynthesis:
     def test_a_missing_kokoro_does_not_break_the_import_or_the_constructor(
         self, monkeypatch
     ) -> None:
-        # The kokoro import used to sit at module scope, which made the
-        # except-branch in the constructor unreachable: with kokoro absent the
-        # import failed first and took the whole module down.
+        # kokoro is imported lazily so a machine without it can still import
+        # the module and fall back.
         client = _client_without_kokoro(monkeypatch)
         assert client.use_kokoro is False
 

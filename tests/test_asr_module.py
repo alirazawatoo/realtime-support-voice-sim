@@ -228,8 +228,6 @@ class TestStreamingListen:
         assert secs == 0.0
 
     def test_capture_is_bounded_when_speech_never_stops(self) -> None:
-        # An endless talker used to block the caller forever: the only exit was
-        # speech followed by silence, and neither a timeout nor a stop existed.
         vad = _FakeVADStream(_speech(10_000))
         text, _, _ = self._client().streaming_listen(vad, max_utterance_ms=50)
         assert text == "final transcript"

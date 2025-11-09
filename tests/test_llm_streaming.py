@@ -50,9 +50,7 @@ class TestStreamChat:
         self, fake_streaming_groq_client
     ) -> None:
         # The tuple is built before the caller consumes a token, so the second
-        # element is the time to open the stream and nothing more. The real
-        # first-token latency was previously computed into a variable that was
-        # always still None at return time.
+        # element is the time to open the stream and nothing more.
         client = LLMClient(client=fake_streaming_groq_client)
         stream, open_ms = client.stream_chat(MESSAGES)
 

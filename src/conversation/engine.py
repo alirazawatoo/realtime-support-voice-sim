@@ -1,16 +1,14 @@
 """
 The turn loop, with no user interface attached.
 
-This is the layer the Streamlit page and the CLI client both sit on. It owns
-the one thing they used to duplicate: take what the customer said, fold it into
-the conversation state, ask the language model, fold the answer back in, and
-time every part of it.
+This is the layer the Streamlit page and the benchmark sit on. It owns one
+job: take what the customer said, fold it into the conversation state, ask the
+language model, fold the answer back in, and time every part of it.
 
-Keeping it here rather than in the view matters for two reasons. The obvious
-one is that the same behaviour was written twice and could drift. The less
-obvious one is that latency is the product: a turn loop that lives inside a
-render function can only be measured by rendering, so the numbers the project
-exists to show were unmeasurable outside a browser. `ConversationEngine` is
+Keeping it out of the view matters because latency is the product: a turn
+loop that lives inside a render function can only be measured by rendering,
+which would make the numbers this project exists to show unmeasurable outside
+a browser. `ConversationEngine` is
 plain Python and can be driven by a benchmark, a test, or a UI.
 """
 

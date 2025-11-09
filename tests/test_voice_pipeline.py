@@ -366,8 +366,8 @@ def test_a_device_that_cannot_open_does_not_leave_a_recording_flag_set(
 
 
 def test_a_stream_that_fails_to_stop_is_still_released(monkeypatch) -> None:
-    # A raising stop() used to leave self.stream set and the device open, so
-    # the next start_recording() opened a second stream on top of it.
+    # A device left open here would be opened a second time by the next
+    # start_recording().
     stream = _FakeInputStream(fail_on="stop")
     _patch_devices(monkeypatch, stream)
 
@@ -433,8 +433,7 @@ def test_starting_without_a_vad_stream_is_a_no_op() -> None:
 
 
 def test_listening_without_audio_explains_itself() -> None:
-    # The None used to be handed to streaming_listen and surfaced as an
-    # AttributeError on `.stream`, which says nothing about the cause.
+    # An AttributeError on `.stream` would say nothing about the cause.
     vc = VoiceClient(
         persona={"name": "C", "system_prompt": "p"},
         session_id="s",

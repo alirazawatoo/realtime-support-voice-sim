@@ -136,8 +136,8 @@ class SimpleVoiceHandler:
     def stop_recording(self) -> None:
         """Stop recording audio."""
         self.is_recording = False
-        # A raising stop() used to leave self.stream set and the device open,
-        # so the next start_recording() opened a second stream on top of it.
+        # Release the device even if stop() raises, or the next
+        # start_recording() opens a second stream on top of this one.
         self._close_stream()
         logger.info("Recording stopped")
 

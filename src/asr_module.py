@@ -244,8 +244,8 @@ class VADStream:
         Block until a speech segment is detected followed by sufficient silence,
         then return the raw PCM bytes for that segment.
 
-        Returns after at most `max_utterance_ms`: the loop previously had no
-        other exit, so silence from a stuck device blocked the caller forever.
+        Returns after at most `max_utterance_ms`, so a stuck device or an
+        endless talker cannot block the caller forever.
         """
         if self.stream is None:
             raise RuntimeError("VADStream not started")
