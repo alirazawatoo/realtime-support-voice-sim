@@ -17,7 +17,6 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Generic, TypeVar
 
 from .base import (
     LanguageModel,
@@ -27,13 +26,11 @@ from .base import (
     Transcriber,
 )
 
-T = TypeVar("T")
-
 AUTO = "auto"
 
 
 @dataclass(slots=True)
-class _Entry(Generic[T]):
+class _Entry[T]:
     name: str
     factory: Callable[[], T]
     #: Whether this provider can run in the current environment. `auto` skips
@@ -45,7 +42,7 @@ class _Entry(Generic[T]):
     priority: int
 
 
-class _Registry(Generic[T]):
+class _Registry[T]:
     def __init__(self, kind: str, env_var: str) -> None:
         self.kind = kind
         self.env_var = env_var
