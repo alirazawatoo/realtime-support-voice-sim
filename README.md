@@ -18,20 +18,26 @@ docker compose up -d --build     # then open http://localhost:8110
 
 No key required: without `GROQ_API_KEY` the model resolves to the scripted local agent, and the
 container seeds a real opening exchange through the engine on first load so the page is not empty.
-`docker compose down -v` when you are done. Locally instead:
+`docker compose down -v` when you are done. Locally instead, on Python 3.12 (`.python-version`):
 
 ```bash
 python3 -m venv project_venv && source project_venv/bin/activate
 pip install -r requirements/base.txt         # pipeline + UI, no audio
-streamlit run streamlit_app.py               # or, driving the same engine:
-python main.py --persona card_lost --turns 3 # full-duplex CLI, real barge-in
+streamlit run streamlit_app.py               # http://localhost:8501
 python scripts/bench_latency.py --turns 12   # p50/p95/max time-to-first-token
 ```
 
-`pip install -r requirements.txt` adds microphone capture and local synthesis (torch, transformers,
-spaCy) — only worth it where there is hardware to drive. With a microphone the UI starts in voice
-mode, without one in text mode; `VOICE_IO` forces either. `--persona` takes `card_lost`,
-`transfer_failed` or `account_locked`, and the CLI is the only entry point that writes
+The CLI is the microphone path, so it needs the audio extras:
+
+```bash
+pip install -r requirements.txt              # + PortAudio, webrtcvad, Kokoro (torch)
+python main.py --persona card_lost --turns 3 # full-duplex, real barge-in
+```
+
+Those extras pull in torch, transformers and spaCy — only worth it where there is hardware to drive.
+On the base install `main.py` exits with that install hint instead of a traceback. With a microphone
+the UI starts in voice mode, without one in text mode; `VOICE_IO` forces either. `--persona` takes
+`card_lost`, `transfer_failed` or `account_locked`, and the CLI is the only entry point that writes
 `logs/latency_log.csv`.
 
 Below is a seeded call against the offline scripted agent — no network, no audio hardware, and every
@@ -40,9 +46,10 @@ number on screen measured rather than mocked.
 ![A lost-card call in progress, with per-turn latency](docs/screenshots/01-conversation.png)
 
 With no credentials the sidebar reports transcription unavailable, the model scripted and synthesis
-silent: three chips, not three exceptions. Also captured, a fresh call after switching scenario
-([04-scenario.png](docs/screenshots/04-scenario.png)) and the review panel
-([03-review.png](docs/screenshots/03-review.png)).
+silent, each labelled *ready* or *stand-in* in words: three status lines, not three exceptions. Also
+captured, a fresh call after switching scenario ([04-scenario.png](docs/screenshots/04-scenario.png)),
+the review panel ([03-review.png](docs/screenshots/03-review.png)) and the page at phone width
+([05-mobile.png](docs/screenshots/05-mobile.png)).
 
 ## One turn, and where the milliseconds accrue
 
@@ -157,25 +164,26 @@ half is real.
 ## What the benchmark measures, and what it does not
 
 `scripts/bench_latency.py` runs a fixed script of customer lines through `ConversationEngine`. Against
-the scripted provider, one run on an M-series laptop, Python 3.14:
+the scripted provider, one run in a `python:3.12-slim` container limited to three CPUs:
 
 ```
 provider          scripted
-turns             12 in 5.08s
+turns             12 in 4.01s
 prompt window     820 chars held after the run
 
                     p50        p95       max
-time to first token    18.1ms     18.1ms     18.2ms
-whole turn            424.1ms    473.6ms    514.9ms
+time to first token    12.7ms     15.4ms     15.4ms
+whole turn            328.8ms    446.7ms    446.7ms
 
 budget            1200ms — 0/12 turns over
 ```
 
 **Read that as the loop's own overhead and nothing else.** The scripted provider emits word by word
-behind a deliberate `time.sleep(0.012)` (`src/local_backend.py`), so roughly 12 of those 18
+behind a deliberate `time.sleep(0.012)` (`src/local_backend.py`), so roughly 12 of those 13
 milliseconds *are the stand-in's own delay*; the remainder is prompt assembly, the window and the
 streaming machinery, and the whole-turn figure is that same 12 ms times the word count of a canned
-reply. Both move with the machine and the interpreter, so run the command rather than trust the block.
+reply. p95 is nearest-rank, shared with the in-app call summary (`conversation.percentile`). Both
+move with the machine and the interpreter, so run the command rather than trust the block.
 **Hosted latency was not measured at all**, because that needs a key and a paid account — nothing here
 is a claim about Groq's response times, and no number in this repo should be read as one.
 
@@ -213,25 +221,30 @@ The rest tune the hosted models, the Kokoro voice, the `say` fallback and the CL
 
 ```bash
 pip install -r requirements/dev.txt
-python -m pytest tests/     # 287 passed
+python -m pytest tests/     # 299 passed
 ruff check . && ruff format --check .
 ```
 
 **No test touches a microphone, a speaker or the network.** `tests/conftest.py` strips `GROQ_API_KEY`
 for every test, so a developer with a real key exported cannot make a live call by accident, and it
 stands in for `groq` and `webrtcvad` when they are not installed, so the suite runs on the base
-install — in a container, or on a CI runner with no sound card.
+install — in a container, or on a CI runner with no sound card. `tests/test_streamlit_render.py`
+drives the real page through Streamlit's `AppTest`: empty state, seeded call, a typed turn, the
+review and the status labels.
 
-The Dockerfile is multi-stage and non-root (`assistant`, uid 1000), with builder/runtime/test targets
-and a healthcheck on `/_stcore/health` via urllib so no curl package is needed. The runtime installs
-`requirements/base.txt` only: the audio extras drive hardware a container does not have, so torch,
-transformers, spaCy, PortAudio, ALSA headers, `webrtcvad` and the whole C toolchain are absent — which
-is what made `webrtcvad` lazy behind `audio_devices.get_webrtcvad()`. The build log for that slimming
-pass records **2.71 GB → 834 MB**, and its verification lines read: build **verified** —
-`docker compose build` at 834 MB, `docker build --target test` at 888 MB; boot **verified** —
-healthcheck `healthy` in about 9 s, `http://localhost:8110/` → `200`, container as uid 1000 resolving
-`stt=unavailable / llm=scripted / tts=silent` with no key; in-container suite
-`docker run --rm ai-voice-assistant:test` → `287 passed in 5.50s`. Host port **8110** only.
+The Dockerfile is multi-stage and non-root (`assistant`, uid 1000), on `python:3.12-slim`, with
+builder/runtime/test targets and a healthcheck on `/_stcore/health` via urllib so no curl package is
+needed. The runtime installs `requirements/base.txt` only: the audio extras drive hardware a container
+does not have, so torch, transformers, spaCy, PortAudio, ALSA headers, `webrtcvad` and the C toolchain
+are absent — which is why `webrtcvad` is lazy behind `audio_devices.get_webrtcvad()`. Measured on this
+pass: runtime image 851 MB, test image 902 MB, healthcheck `healthy` and `/` → `200` as uid 1000 with
+no key, and the suite inside the test image with `--network none` → `299 passed`:
+
+```bash
+docker build --target test -t ai-voice-assistant:test . && docker run --rm --network none ai-voice-assistant:test
+```
+
+Host port **8110** only.
 
 ## What this does not do
 
@@ -244,7 +257,14 @@ healthcheck `healthy` in about 9 s, `http://localhost:8110/` → `200`, containe
   exhaustive. Feedback scoring grades the model's replies, not a trainee's.
 - **The CSV log is CLI-only.** Neither Streamlit path writes `logs/latency_log.csv`; the UI holds its
   metrics in session state for the page's lifetime and exports them on request.
+- **Hosted paths are untested against the real service.** The Groq SDK is on 1.x and its call
+  signatures were checked, but no request has been made with a key; the audio extras were bumped
+  without being installed, since that needs real devices.
 - **Transitive dependencies float.** `requirements/` pins the direct dependencies exactly and lets
   pip resolve the rest — easier to maintain than a full freeze, but not a lockfile.
 - **`VoiceClient` still owns its own turn assembly** rather than running on `ConversationEngine`, though
   it shares `split_sentences` and `ConversationState` with it. That is the one duplication left.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
