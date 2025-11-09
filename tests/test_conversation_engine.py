@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-from src.conversation import ConversationEngine, TurnMetrics, turn_budget_ms
+from src.conversation import ConversationEngine, TurnMetrics, percentile, turn_budget_ms
 from src.conversation.engine import DEFAULT_TURN_BUDGET_MS
 from src.providers.base import LLMReply
 from src.state_manager import ConversationState
@@ -143,6 +143,30 @@ class TestStreamingTurns:
         assert engine.last_turn.assistant_text == ""
         assert engine.last_turn.metrics.first_token_ms is None
 
+    def test_a_failed_stream_leaves_no_unanswered_customer_line(self) -> None:
+        class Broken(FakeModel):
+            def stream(self, messages):
+                yield "Partial "
+                raise RuntimeError("connection reset")
+
+        engine = engine_for(Broken())
+        with pytest.raises(RuntimeError):
+            list(engine.stream_respond("hello"))
+
+        assert engine.turns == []
+        assert engine.state.turns == []
+
+    def test_an_abandoned_stream_does_not_poison_the_next_prompt(self) -> None:
+        model = FakeModel("One two three.")
+        engine = engine_for(model)
+        stream = engine.stream_respond("first")
+        next(stream)
+        stream.close()
+
+        list(engine.stream_respond("second"))
+        roles = [m["role"] for m in model.seen[-1]]
+        assert roles == ["system", "user"]
+
 
 class TestBudget:
     def test_a_fast_turn_is_within_budget(self) -> None:
@@ -235,3 +259,16 @@ def test_metrics_without_a_stream_fall_back_to_whole_turn_latency() -> None:
     metrics = TurnMetrics(index=1, llm_ms=900.0, total_ms=1000.0, budget_ms=500.0)
     assert metrics.responsiveness_ms == 1000.0
     assert metrics.over_budget is True
+
+
+class TestPercentile:
+    def test_p95_of_twenty_turns_is_not_the_worst_one(self) -> None:
+        values = [float(v) for v in range(1, 21)]
+        assert percentile(values, 0.95) == 19.0
+
+    def test_a_single_value_is_every_percentile(self) -> None:
+        assert percentile([42.0], 0.5) == 42.0
+        assert percentile([42.0], 0.95) == 42.0
+
+    def test_nothing_measured_is_zero(self) -> None:
+        assert percentile([], 0.95) == 0.0

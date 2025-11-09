@@ -28,18 +28,10 @@ from pathlib import Path
 # invoked directly.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.conversation import ConversationEngine
+from src.conversation import ConversationEngine, percentile
 from src.conversation.seed import openings_for
 from src.persona_loader import load_persona
 from src.providers import create_llm
-
-
-def percentile(values: list[float], fraction: float) -> float:
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    index = min(len(ordered) - 1, round(fraction * (len(ordered) - 1)))
-    return ordered[index]
 
 
 def main() -> int:

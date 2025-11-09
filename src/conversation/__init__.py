@@ -5,6 +5,7 @@ from .engine import (
     ConversationEngine,
     Turn,
     TurnMetrics,
+    percentile,
     turn_budget_ms,
 )
 from .seed import seed_demo_call
@@ -18,6 +19,7 @@ __all__ = [
     "TurnMetrics",
     "export_json",
     "export_markdown",
+    "percentile",
     "seed_demo_call",
     "split_sentences",
     "turn_budget_ms",

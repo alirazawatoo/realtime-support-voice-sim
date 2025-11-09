@@ -16,6 +16,7 @@ plain Python and can be driven by a benchmark, a test, or a UI.
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from collections.abc import Iterator
@@ -43,6 +44,15 @@ def turn_budget_ms() -> float:
     except ValueError:
         return DEFAULT_TURN_BUDGET_MS
     return value if value > 0 else DEFAULT_TURN_BUDGET_MS
+
+
+def percentile(values: list[float], fraction: float) -> float:
+    """Nearest-rank percentile: the smallest value with `fraction` of the data at or below it."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    rank = max(1, math.ceil(fraction * len(ordered)))
+    return ordered[rank - 1]
 
 
 @dataclass(slots=True)
@@ -133,6 +143,10 @@ class ConversationEngine:
         self.state.add_turn("user", user_text)
         return self.state.as_messages(self.system_prompt)
 
+    def _discard_unanswered(self, user_text: str) -> None:
+        if self.state.turns and self.state.turns[-1] == {"role": "user", "text": user_text}:
+            self.state.turns.pop()
+
     def _record(
         self,
         user_text: str,
@@ -179,11 +193,18 @@ class ConversationEngine:
         first_token_ms: float | None = None
         pieces: list[str] = []
 
-        for piece in self.llm.stream(messages):
-            if first_token_ms is None:
-                first_token_ms = (time.perf_counter() - started) * 1000
-            pieces.append(piece)
-            yield piece
+        try:
+            for piece in self.llm.stream(messages):
+                if first_token_ms is None:
+                    first_token_ms = (time.perf_counter() - started) * 1000
+                pieces.append(piece)
+                yield piece
+        except BaseException:
+            # A provider error, or a consumer that stopped reading, leaves no
+            # reply to record. Keeping the user line would send two customer
+            # turns in a row on the next request, so it goes too.
+            self._discard_unanswered(user_text)
+            raise
 
         elapsed_ms = (time.perf_counter() - started) * 1000
         assistant_text = "".join(pieces).strip()
@@ -222,7 +243,7 @@ class ConversationEngine:
         return {
             "turns": len(self.turns),
             "mean_response_ms": sum(responsive) / len(responsive),
-            "p95_response_ms": responsive[min(len(responsive) - 1, int(len(responsive) * 0.95))],
+            "p95_response_ms": percentile(responsive, 0.95),
             "worst_response_ms": responsive[-1],
             "over_budget": sum(1 for t in self.turns if t.metrics.over_budget),
             "budget_ms": self.budget_ms,
