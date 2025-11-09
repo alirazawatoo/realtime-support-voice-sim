@@ -223,6 +223,15 @@ class TestScoreAndRendering:
         assert "Compliance flags" in markdown
         assert "PIN" in markdown
 
+    def test_each_point_is_marked_in_words_not_symbols(self) -> None:
+        # The verdict has to survive a screen reader and a plain-text export.
+        markdown = review_call(
+            conversation(("assistant", "Hello, I understand. Please confirm your PIN."))
+        ).to_markdown()
+        assert "- **Met:**" in markdown
+        assert "- **Missed:**" in markdown
+        assert "- **Breach:**" in markdown
+
     def test_the_dict_form_round_trips_through_json(self) -> None:
         review = review_call(
             conversation(("assistant", "Please confirm your PIN.")),

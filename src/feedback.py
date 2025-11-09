@@ -85,6 +85,6 @@ def evaluate(state: ConversationState) -> str:
     """The human-readable report: what the call did, then what it missed."""
     scored = criteria(state)
     lines = ["Post-run evaluation:"]
-    lines += [f"✅ {c.label}" for c in scored if c.met]
-    lines += [f"⚠️ {c.label}" for c in scored if not c.met]
+    lines += [f"  [met]    {c.label}" for c in scored if c.met]
+    lines += [f"  [missed] {c.label}" for c in scored if not c.met]
     return "\n".join(lines)

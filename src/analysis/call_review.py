@@ -133,16 +133,16 @@ class CallReview:
         # List items, not bare lines: Markdown collapses single newlines, so
         # the points rendered as one run-on sentence.
         for point in self.points:
-            mark = "✅" if point.met else "⚠️"
+            mark = "Met" if point.met else "Missed"
             note = f" — {point.note}" if point.note else ""
-            lines.append(f"- {mark} {point.label}{note}")
+            lines.append(f"- **{mark}:** {point.label}{note}")
         if self.flags:
             lines += ["", "**Compliance flags**", ""]
             for flag in self.flags:
-                lines.append(f"- 🚩 {flag.reason}")
+                lines.append(f"- **Breach:** {flag.reason}")
                 lines.append(f"  > {flag.quote}")
         else:
-            lines += ["", "🛡️ No compliance rules were broken."]
+            lines += ["", "No compliance rules were broken."]
         return "\n".join(lines)
 
     def as_dict(self) -> dict[str, Any]:
