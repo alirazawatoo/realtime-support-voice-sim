@@ -1,0 +1,13 @@
+# Committed on purpose: the palette is part of the app, not a local preference.
+[theme]
+base = "light"
+primaryColor = "#0b6e66"
+backgroundColor = "#f6f8f7"
+secondaryBackgroundColor = "#e9efed"
+textColor = "#12282c"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap"
+baseRadius = "small"
+
+[browser]
+gatherUsageStats = false

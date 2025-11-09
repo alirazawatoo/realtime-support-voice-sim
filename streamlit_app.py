@@ -20,6 +20,7 @@ them has audio hardware — and it exercises everything except ASR and TTS.
 from __future__ import annotations
 
 import os
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -40,63 +41,87 @@ from src.state_manager import ConversationState
 
 APP_TITLE = "Voice Support Simulator"
 BASE_DIR = Path(__file__).parent
+CUSTOMER_AVATAR = ":material/person:"
+AGENT_AVATAR = ":material/support_agent:"
 
 STYLES = """
 <style>
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&display=swap");
 :root {
-  --vs-ink: #101828;
-  --vs-muted: #667085;
-  --vs-line: #e4e7ec;
+  /* A call-centre console rather than a chat toy: deep teal ink on paper,
+     amber for anything over budget, green only for a provider that is live. */
+  --vs-ink: #12282c;
+  --vs-muted: #4a5f63;
+  --vs-line: #cfdcd8;
   --vs-surface: #ffffff;
-  --vs-accent: #4338ca;
-  --vs-good: #067647;
-  --vs-good-bg: #ecfdf3;
-  --vs-warn: #b54708;
-  --vs-warn-bg: #fffaeb;
-  --vs-idle-bg: #f2f4f7;
+  --vs-accent: #0b6e66;
+  --vs-good: #0f5f37;
+  --vs-good-bg: #e7f4ec;
+  --vs-warn: #8a4304;
+  --vs-warn-bg: #fdf1dc;
+  --vs-idle-bg: #eef3f1;
+  --vs-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 .vs-hero {
   border: 1px solid var(--vs-line);
-  border-left: 4px solid var(--vs-accent);
-  border-radius: 12px;
+  border-top: 4px solid var(--vs-accent);
+  border-radius: 6px;
   padding: 18px 22px;
   margin-bottom: 18px;
   background: var(--vs-surface);
 }
 .vs-hero h1 {
-  font-size: 1.5rem; margin: 0 0 4px 0; color: var(--vs-ink); letter-spacing: -0.01em;
+  font-size: 1.45rem; margin: 0 0 4px 0; padding: 0; color: var(--vs-ink);
+  letter-spacing: -0.01em;
 }
-.vs-hero p { margin: 0; color: var(--vs-muted); font-size: 0.93rem; line-height: 1.5; }
-.vs-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.vs-chip {
-  font-size: 0.74rem; font-weight: 600; letter-spacing: 0.02em;
-  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--vs-line);
+.vs-hero p { margin: 0; color: var(--vs-muted); font-size: 0.95rem; line-height: 1.55; }
+ul.vs-chips {
+  display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0 0 !important; padding: 0 !important;
+}
+ul.vs-chips li.vs-chip {
+  list-style: none; margin: 0 !important; font-family: var(--vs-mono);
+  font-size: 0.75rem !important; font-weight: 600; line-height: 1.5;
+  padding: 3px 9px; border-radius: 4px; border: 1px solid var(--vs-line);
   background: var(--vs-idle-bg); color: var(--vs-muted);
 }
-.vs-chip.ok { background: var(--vs-good-bg); color: var(--vs-good); border-color: #abefc6; }
-.vs-chip.warn { background: var(--vs-warn-bg); color: var(--vs-warn); border-color: #fedf89; }
+.vs-chip.ok { background: var(--vs-good-bg); color: var(--vs-good); border-color: #9fd3b4; }
+.vs-chip.warn { background: var(--vs-warn-bg); color: var(--vs-warn); border-color: #f0c47a; }
 .vs-provider {
-  border: 1px solid var(--vs-line); border-radius: 10px;
+  border: 1px solid var(--vs-line); border-left: 3px solid var(--vs-line); border-radius: 4px;
   padding: 10px 12px; margin-bottom: 8px; background: var(--vs-surface);
 }
+.vs-provider.ok { border-left-color: var(--vs-good); }
+.vs-provider.warn { border-left-color: #d08a1e; }
 .vs-provider .kind {
-  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--vs-muted);
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--vs-muted);
 }
-.vs-provider .name { font-size: 0.95rem; font-weight: 650; color: var(--vs-ink); }
-.vs-provider .detail { font-size: 0.78rem; color: var(--vs-muted); line-height: 1.4; }
+.vs-provider .name {
+  font-family: var(--vs-mono); font-size: 0.92rem; font-weight: 600; color: var(--vs-ink);
+}
+.vs-provider .state { font-size: 0.72rem; font-weight: 600; margin-left: 6px; }
+.vs-provider.ok .state { color: var(--vs-good); }
+.vs-provider.warn .state { color: var(--vs-warn); }
+.vs-provider .detail { font-size: 0.8rem; color: var(--vs-muted); line-height: 1.4; }
 .vs-turnline {
-  font-size: 0.76rem; color: var(--vs-muted); margin: -6px 0 14px 52px;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--vs-mono); font-size: 0.76rem; color: var(--vs-muted);
+  margin: -6px 0 14px 52px; font-variant-numeric: tabular-nums;
 }
-.vs-turnline b { color: var(--vs-ink); font-weight: 650; }
-.vs-turnline .over { color: var(--vs-warn); font-weight: 650; }
+.vs-turnline b { color: var(--vs-ink); font-weight: 600; }
+.vs-turnline .over { color: var(--vs-warn); font-weight: 600; }
 .vs-empty {
-  border: 1px dashed var(--vs-line); border-radius: 12px; padding: 26px;
-  text-align: center; color: var(--vs-muted); font-size: 0.9rem; background: var(--vs-surface);
+  border: 1px dashed var(--vs-line); border-radius: 6px; padding: 26px;
+  text-align: center; color: var(--vs-muted); font-size: 0.92rem; background: var(--vs-surface);
 }
 div[data-testid="stSidebar"] h2 { font-size: 0.95rem; }
-/* Streamlit's default top padding leaves the page opening on empty space. */
-div[data-testid="stMainBlockContainer"] { padding-top: 2.4rem; }
+div[data-testid="stMetricValue"] { font-family: var(--vs-mono); font-size: 1.5rem; }
+/* Streamlit's default top padding leaves the page opening on empty space;
+   this is as tight as it goes without sliding under the toolbar. */
+div[data-testid="stMainBlockContainer"] { padding-top: 3.75rem; }
+@media (max-width: 640px) {
+  .vs-hero { padding: 14px 16px; }
+  .vs-hero h1 { font-size: 1.2rem; }
+  .vs-turnline { margin-left: 0; }
+}
 </style>
 """
 
@@ -166,22 +191,22 @@ def get_engine(persona: dict[str, Any], display_name: str) -> ConversationEngine
 def render_hero(providers: ProviderSet, mode: str) -> None:
     ready = {s.kind: s for s in providers.statuses()}
     chips = [
-        f'<span class="vs-chip {"ok" if ready[kind].ready else "warn"}">'
-        f"{label} · {ready[kind].resolved}</span>"
+        f'<li class="vs-chip {"ok" if ready[kind].ready else "warn"}">'
+        f"{label} · {escape(ready[kind].resolved)}</li>"
         for kind, label in (("stt", "STT"), ("llm", "LLM"), ("tts", "TTS"))
     ]
-    chips.append(f'<span class="vs-chip">{mode}</span>')
-    chips.append(f'<span class="vs-chip">budget {turn_budget_ms():.0f} ms</span>')
+    chips.append(f'<li class="vs-chip">{mode}</li>')
+    chips.append(f'<li class="vs-chip">budget {turn_budget_ms():.0f} ms</li>')
 
     st.markdown(
         f"""
-        <div class="vs-hero">
+        <header class="vs-hero">
           <h1>{APP_TITLE}</h1>
           <p>A bank support call, end to end: transcribe, decide, speak — with
           every turn timed. You are the customer; the assistant plays the
           support agent for the selected scenario.</p>
-          <div class="vs-chips">{"".join(chips)}</div>
-        </div>
+          <ul class="vs-chips" aria-label="Pipeline status">{"".join(chips)}</ul>
+        </header>
         """,
         unsafe_allow_html=True,
     )
@@ -191,19 +216,19 @@ def render_provider_panel(providers: ProviderSet) -> None:
     st.markdown("## Pipeline")
     labels = {"stt": "Speech to text", "llm": "Language model", "tts": "Text to speech"}
     for status in providers.statuses():
-        badge = "✅" if status.ready else "⚠️"
+        tone, state = ("ok", "ready") if status.ready else ("warn", "stand-in")
         st.markdown(
             f"""
-            <div class="vs-provider">
+            <div class="vs-provider {tone}">
               <div class="kind">{labels[status.kind]}</div>
-              <div class="name">{badge} {status.resolved}</div>
-              <div class="detail">{status.detail}</div>
+              <div class="name">{escape(status.resolved)}<span class="state">{state}</span></div>
+              <div class="detail">{escape(status.detail)}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     for warning in providers.warnings:
-        st.warning(warning, icon="⚠️")
+        st.warning(warning, icon=":material/warning:")
 
 
 def ms(value: float) -> str:
@@ -246,9 +271,9 @@ def render_transcript(engine: ConversationEngine) -> None:
         return
 
     for turn in engine.turns:
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar=CUSTOMER_AVATAR):
             st.write(turn.user_text)
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=AGENT_AVATAR):
             st.write(turn.assistant_text)
         render_turn_line(turn.metrics)
 
@@ -299,11 +324,12 @@ def render_review(engine: ConversationEngine, providers: ProviderSet) -> None:
     st.markdown("### Call review")
     disabled = not engine.turns
     if st.button("Review this call", disabled=disabled, width="stretch"):
-        st.session_state.review = review_call(
-            engine.state,
-            llm=providers.llm,
-            persona_name=engine.persona.get("name", "Agent"),
-        )
+        with st.spinner("Reviewing the agent's side of the call…"):
+            st.session_state.review = review_call(
+                engine.state,
+                llm=providers.llm,
+                persona_name=engine.persona.get("name", "Agent"),
+            )
 
     review = st.session_state.get("review")
     if review is None:
@@ -319,7 +345,7 @@ def render_review(engine: ConversationEngine, providers: ProviderSet) -> None:
         st.info(
             "No language model is reachable, so this is the offline keyword "
             "heuristic — a pattern match, not an assessment.",
-            icon="ℹ️",  # noqa: RUF001
+            icon=":material/info:",
         )
     st.markdown(review.to_markdown())
 
@@ -379,9 +405,9 @@ def render_text_mode(personas: list[tuple[str, dict[str, Any]]]) -> None:
 
     prompt = st.chat_input("Type what the customer says…")
     if prompt:
-        with st.chat_message("user"):
+        with st.chat_message("user", avatar=CUSTOMER_AVATAR):
             st.write(prompt)
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=AGENT_AVATAR):
             try:
                 st.write_stream(engine.stream_respond(prompt))
             except Exception as exc:  # surfaced, not swallowed
@@ -423,7 +449,7 @@ def render_voice_mode(personas: list[tuple[str, dict[str, Any]]]) -> None:
     handler = st.session_state.voice_handler
 
     render_hero(providers, "voice mode")
-    st.info(st.session_state.voice_status, icon="🎙️")
+    st.info(st.session_state.voice_status, icon=":material/mic:")
 
     left, right = st.columns(2)
     if handler.is_recording:
@@ -449,7 +475,11 @@ def render_voice_mode(personas: list[tuple[str, dict[str, Any]]]) -> None:
     st.markdown("---")
     if handler.state.turns:
         for turn in handler.state.turns:
-            with st.chat_message("user" if turn["role"] == "user" else "assistant"):
+            is_customer = turn["role"] == "user"
+            with st.chat_message(
+                "user" if is_customer else "assistant",
+                avatar=CUSTOMER_AVATAR if is_customer else AGENT_AVATAR,
+            ):
                 st.write(turn["text"])
     else:
         st.markdown(
@@ -476,7 +506,7 @@ def render_voice_mode(personas: list[tuple[str, dict[str, Any]]]) -> None:
 
 def main() -> None:
     load_dotenv()
-    st.set_page_config(page_title=APP_TITLE, page_icon="🎙️", layout="wide")
+    st.set_page_config(page_title=APP_TITLE, page_icon=":material/support_agent:", layout="wide")
     st.markdown(STYLES, unsafe_allow_html=True)
 
     personas = load_personas()
